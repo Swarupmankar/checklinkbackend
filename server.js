@@ -1,67 +1,188 @@
-require('dotenv').config();
+const express = require("express");
+const mongoose = require("mongoose");
+const dotenv = require("dotenv");
+const cors = require("cors");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+const multer = require("multer");
 
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
+// Load environment variables
+dotenv.config();
+
 const app = express();
-
-const port = process.env.PORT || 5000;
-const mongoURI = process.env.MONGO_URI;
-
-// Connect to MongoDB Atlas
-mongoose.connect(mongoURI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-}).then(() => {
-  console.log('Connected to MongoDB Atlas');
-}).catch((error) => {
-  console.error('Error connecting to MongoDB Atlas:', error.message);
-});
-
-const linkSchema = new mongoose.Schema({
-  url: String,
-  count: { type: Number, default: 0 },
-});
-
-const Link = mongoose.model('Link', linkSchema);
-
-app.use(cors());
 app.use(express.json());
+app.use(cors());
 
-app.post('/check-link', async (req, res) => {
-  const { url } = req.body;
+// MongoDB connection
+mongoose
+  .connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => console.log("MongoDB connected"))
+  .catch((err) => console.error("MongoDB connection error:", err));
+
+// User Schema and Model
+const userSchema = new mongoose.Schema({
+  username: { type: String, unique: true, required: true },
+  email: { type: String, unique: true, required: true },
+  password: { type: String, required: true },
+});
+
+const User = mongoose.model("User", userSchema);
+
+// URL Schema and Model
+const urlSchema = new mongoose.Schema({
+  url: { type: String, unique: true },
+  date: { type: Date, default: Date.now },
+  status: {
+    type: String,
+    enum: ["pending", "downloaded", "scraped"],
+    default: "pending",
+  },
+  user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+});
+
+const URL = mongoose.model("URL", urlSchema);
+
+// Middleware for authenticating tokens
+const authenticate = (req, res, next) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return res.status(401).send("Access denied");
 
   try {
-    let link = await Link.findOne({ url });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded; // Store user info in the request
+    next();
+  } catch (err) {
+    res.status(403).send("Invalid token");
+  }
+};
 
-    if (link) {
-      link.count += 1;
-      await link.save();
-      res.json({ message: `You have checked this link ${link.count} times.` });
-    } else {
-      link = new Link({ url });
-      await link.save();
-      res.json({ message: 'This file is not downloaded yet.' });
-    }
-  } catch (error) {
-    console.error('Error checking link:', error.message);
-    res.status(500).json({ error: 'An error occurred while checking the link.' });
+// Routes
+
+// User Registration
+app.post("/api/register", async (req, res) => {
+  const { username, email, password } = req.body;
+
+  if (!username || !email || !password) {
+    return res.status(400).send("All fields are required");
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  try {
+    await User.create({ username, email, password: hashedPassword });
+    res.status(201).send("User registered successfully");
+  } catch (err) {
+    res.status(400).send("Error: Username or email already exists");
   }
 });
 
-// Endpoint to get user stats
-app.get('/stats', async (req, res) => {
-    const { userId } = req.params;
-  
-    try {
-        const totalLinks = await Link.countDocuments(); // Count all links in the database
-        res.json({ totalLinks });
-      } catch (error) {
-        console.error('Error fetching stats:', error.message);
-        res.status(500).json({ error: 'An error occurred while fetching stats.' });
-      }
+// User Login
+app.post("/api/login", async (req, res) => {
+  const { email, password } = req.body;
+
+  const user = await User.findOne({ email });
+  if (!user) return res.status(400).send("User not found");
+
+  const isPasswordValid = await bcrypt.compare(password, user.password);
+  if (!isPasswordValid) return res.status(400).send("Invalid credentials");
+
+  const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+    expiresIn: "1d",
   });
 
-app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
+  res.json({ token });
+});
+
+app.get("/api/auth/verify", authenticate, (req, res) => {
+    res.status(200).send("Authenticated");
+  });
+
+// Get All URLs (Protected)
+app.get("/api/urls", authenticate, async (req, res) => {
+  const urls = await URL.find({ user: req.user.id }).sort({ date: -1 });
+  res.json(urls);
+});
+
+// Get URL Stats (Protected)
+app.get("/api/stats", authenticate, async (req, res) => {
+  const downloaded = await URL.countDocuments({
+    status: "downloaded",
+    user: req.user.id,
+  });
+  const scraped = await URL.countDocuments({
+    status: "scraped",
+    user: req.user.id,
+  });
+  const pending = await URL.countDocuments({
+    status: "pending",
+    user: req.user.id,
+  });
+  res.json({ downloaded, scraped, pending });
+});
+
+// Add URL (Protected)
+app.post("/api/urls", authenticate, async (req, res) => {
+  try {
+    const { url } = req.body;
+    const newUrl = new URL({ url, user: req.user.id });
+    await newUrl.save();
+    res.status(201).send("URL added successfully!");
+  } catch (err) {
+    res.status(400).send("Error: URL must be unique!");
+  }
+});
+
+// Perform Actions on URLs (Protected)
+app.post("/api/urls/:id/:action", authenticate, async (req, res) => {
+  const { id, action } = req.params;
+  const allowedActions = ["download", "scrap", "delete"];
+  if (!allowedActions.includes(action)) {
+    return res.status(400).send("Invalid action");
+  }
+
+  const url = await URL.findById(id);
+  if (!url || !url.user.equals(req.user.id)) {
+    return res.status(403).send("Access denied to modify this URL");
+  }
+
+  if (action === "delete") {
+    await URL.findByIdAndDelete(id);
+  } else {
+    const status = action === "download" ? "downloaded" : "scraped";
+    await URL.findByIdAndUpdate(id, { status });
+  }
+
+  res.send("Action performed successfully!");
+});
+
+// File Upload for .txt (Protected)
+const upload = multer({ dest: "uploads/" });
+app.post(
+  "/api/upload",
+  authenticate,
+  upload.single("file"),
+  async (req, res) => {
+    const fs = require("fs");
+    const links = fs
+      .readFileSync(req.file.path, "utf-8")
+      .split("\n")
+      .filter(Boolean);
+    for (let url of links) {
+      try {
+        await URL.create({ url, user: req.user.id });
+      } catch (err) {
+        continue; // Skip duplicate entries
+      }
+    }
+    fs.unlinkSync(req.file.path); // Delete the uploaded file
+    res.send("File processed successfully!");
+  }
+);
+
+// Start server
+app.listen(5000, () => {
+  console.log("Server is running");
 });
