@@ -15,10 +15,7 @@ app.use(cors());
 
 // MongoDB connection
 mongoose
-  .connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
+  .connect(process.env.MONGO_URI, {})
   .then(() => console.log("MongoDB connected"))
   .catch((err) => console.error("MongoDB connection error:", err));
 
@@ -97,8 +94,8 @@ app.post("/api/login", async (req, res) => {
 });
 
 app.get("/api/auth/verify", authenticate, (req, res) => {
-    res.status(200).send("Authenticated");
-  });
+  res.status(200).send("Authenticated");
+});
 
 // Get All URLs (Protected)
 app.get("/api/urls", authenticate, async (req, res) => {
