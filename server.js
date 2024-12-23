@@ -40,6 +40,7 @@ const urlSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
 });
 
+urlSchema.index({ url: 1, user: 1 }, { unique: true });
 const URL = mongoose.model("URL", urlSchema);
 
 // Middleware for authenticating tokens
@@ -124,6 +125,11 @@ app.get("/api/stats", authenticate, async (req, res) => {
 app.post("/api/urls", authenticate, async (req, res) => {
   try {
     const { url } = req.body;
+    const exists = await URL.findOne({ url, user: req.user.id });
+    if (exists) {
+      return res.status(400).send("URL already exists!");
+    }
+
     const newUrl = new URL({ url, user: req.user.id });
     await newUrl.save();
     res.status(201).send("URL added successfully!");
@@ -171,10 +177,10 @@ app.post(
       try {
         await URL.create({ url, user: req.user.id });
       } catch (err) {
-        continue; // Skip duplicate entries
+        continue; 
       }
     }
-    fs.unlinkSync(req.file.path); // Delete the uploaded file
+    fs.unlinkSync(req.file.path); 
     res.send("File processed successfully!");
   }
 );
