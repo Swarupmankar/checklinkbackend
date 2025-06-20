@@ -177,10 +177,10 @@ app.post(
       try {
         await URL.create({ url, user: req.user.id });
       } catch (err) {
-        continue; 
+        continue;
       }
     }
-    fs.unlinkSync(req.file.path); 
+    fs.unlinkSync(req.file.path);
     res.send("File processed successfully!");
   }
 );
