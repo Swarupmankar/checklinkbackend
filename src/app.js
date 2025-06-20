@@ -7,7 +7,6 @@ const cookieParser = require("cookie-parser");
 
 const app = express();
 connectDB();
-app.use(cookieParser());
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -20,11 +19,13 @@ app.use((req, res, next) => {
 
 const allowedOrigins = [
   "http://localhost:8080", // local dev
-  "https://checklinkfun.vercel.app/", // your Vercel frontend URL (replace this)
+  "https://checklinkfun.vercel.app", // your Vercel frontend URL (replace this)
 ];
 
 // global middleware
 app.use(express.json());
+app.use(cookieParser());
+
 app.use(
   cors({
     origin: function (origin, callback) {
