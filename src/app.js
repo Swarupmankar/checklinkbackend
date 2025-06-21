@@ -19,7 +19,9 @@ app.use((req, res, next) => {
 
 const allowedOrigins = [
   "http://localhost:8080", // local dev
-  "https://checklinkfun.vercel.app", // your Vercel frontend URL (replace this)
+  "https://checklinkfun.vercel.app",
+  "capacitor://localhost",
+  "http://localhost", // your Vercel frontend URL (replace this)
 ];
 
 // global middleware
@@ -32,6 +34,7 @@ app.use(
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
+        console.log("❌ Blocked by CORS:", origin);
         callback(new Error("Not allowed by CORS"));
       }
     },
