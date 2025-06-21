@@ -22,6 +22,7 @@ const allowedOrigins = [
   "https://checklinkfun.vercel.app",
   "capacitor://localhost",
   "http://localhost", // your Vercel frontend URL (replace this)
+  "https://localhost",
 ];
 
 // global middleware
