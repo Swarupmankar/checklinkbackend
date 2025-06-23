@@ -1,10 +1,9 @@
-exports.getBaseDomain = function (url) {
+exports.getBaseDomain = function (rawUrl) {
   try {
-    const hostname = new URL(url).hostname;
-    const parts = hostname.split(".");
-    const len = parts.length;
-    if (len >= 2) return parts[len - 2] + "." + parts[len - 1]; // e.g., eporner.com
-    return hostname;
+    let url = rawUrl;
+    if (!url.startsWith("http")) url = "http://" + url;
+    const parsed = new URL(url);
+    return parsed.hostname.replace("www.", "");
   } catch {
     return "invalid-domain";
   }

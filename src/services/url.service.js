@@ -14,8 +14,25 @@ function getBaseDomain(url) {
 }
 
 class UrlService {
-  static async listByUser(userId) {
-    return URL.find({ user: userId }).sort({ date: -1 });
+  static async listByUser(userId, page = 1, limit = 12) {
+    const skip = (page - 1) * limit;
+
+    const [urls, total] = await Promise.all([
+      URL.find({ user: userId }).sort({ date: -1 }).skip(skip).limit(limit),
+      URL.countDocuments({ user: userId }),
+    ]);
+
+    return {
+      data: urls,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        hasNextPage: page * limit < total,
+        hasPreviousPage: page > 1,
+      },
+    };
   }
 
   static async statsByUser(userId) {
@@ -94,9 +111,28 @@ class UrlService {
 
     return Object.values(domainMap);
   }
-  static async listByDomain(userId, domain) {
-    const all = await URL.find({ user: userId });
-    return all.filter((link) => getBaseDomain(link.url) === domain);
+  static async listByDomain(userId, domain, page = 1, limit = 10) {
+    const skip = (page - 1) * limit;
+
+    const [urls, total] = await Promise.all([
+      URL.find({ user: userId, domain })
+        .sort({ date: -1 })
+        .skip(skip)
+        .limit(limit),
+      URL.countDocuments({ user: userId, domain }),
+    ]);
+
+    return {
+      data: urls,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        hasNextPage: page * limit < total,
+        hasPreviousPage: page > 1,
+      },
+    };
   }
 
   static async bulkAdd(urls, userId) {
@@ -129,6 +165,29 @@ class UrlService {
     }
 
     return { added, skipped };
+  }
+  static async getDomainsAggregate(userId) {
+    return URL.aggregate([
+      { $match: { user: new mongoose.Types.ObjectId(userId) } },
+      {
+        $group: {
+          _id: "$domain",
+          count: { $sum: 1 },
+          downloaded: {
+            $sum: { $cond: [{ $eq: ["$status", "downloaded"] }, 1, 0] },
+          },
+          scraped: {
+            $sum: { $cond: [{ $eq: ["$status", "scraped"] }, 1, 0] },
+          },
+          pending: {
+            $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] },
+          },
+          firstAdded: { $min: "$date" },
+          lastAdded: { $max: "$date" },
+        },
+      },
+      { $sort: { count: -1 } },
+    ]);
   }
 }
 

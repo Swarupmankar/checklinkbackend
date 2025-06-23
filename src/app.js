@@ -17,17 +17,18 @@ app.use((req, res, next) => {
   next();
 });
 
-const allowedOrigins = [
-  "http://localhost:8080", // local dev
-  "https://checklinkfun.vercel.app",
-  "capacitor://localhost",
-  "http://localhost", // your Vercel frontend URL (replace this)
-  "https://localhost",
-];
-
 // global middleware
 app.use(express.json());
 app.use(cookieParser());
+
+const allowedOrigins = [
+  "http://localhost:8080",
+  "https://checklinkfun.vercel.app",
+  "capacitor://localhost",
+  "http://localhost",
+  "https://localhost",
+  "https://preview--linkvault-bloom-nexus.lovable.app",
+];
 
 app.use(
   cors({
