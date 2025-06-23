@@ -1,15 +1,29 @@
 const URL = require("../models/url.model");
 const mongoose = require("mongoose");
+const axios = require("axios");
+const { fetchThumbnail } = require("./thumbnail.service");
+const { getBaseDomain } = require("../utils/url.helper");
 
-function getBaseDomain(url) {
+function normaliseUrl(raw) {
+  // prepend protocol if missing
+  return raw.startsWith("http") ? raw.trim() : `https://${raw.trim()}`;
+}
+
+async function enrichWithThumbnail(rawUrl) {
   try {
-    const hostname = new URL(url).hostname;
-    const parts = hostname.split(".");
-    const len = parts.length;
-    if (len >= 2) return parts[len - 2] + "." + parts[len - 1]; // e.g., eporner.com
-    return hostname;
-  } catch {
-    return "invalid-domain";
+    const { thumbnail: thumbUrl, title } = await fetchThumbnail(rawUrl);
+
+    const imgRes = await axios.get(thumbUrl, { responseType: "arraybuffer" });
+    return {
+      title,
+      thumbnail: {
+        data: Buffer.from(imgRes.data),
+        contentType: imgRes.headers["content-type"] || "image/jpeg",
+      },
+    };
+  } catch (err) {
+    console.warn("Thumbnail fetch failed:", err.message);
+    return { title: null, thumbnail: null };
   }
 }
 
@@ -35,6 +49,64 @@ class UrlService {
     };
   }
 
+  static async add(rawUrl, userId) {
+    const url = normaliseUrl(rawUrl);
+
+    /* 1. Basic URL validity --------------------------------------- */
+    let validDomain;
+    try {
+      validDomain = getBaseDomain(url);
+      // Will throw if URL constructor can’t parse it
+      // eslint-disable-next-line no-new
+      new URL(url);
+    } catch {
+      const err = new Error("Invalid URL format");
+      err.code = "INVALID_URL";
+      throw err;
+    }
+
+    /* 2. Duplicate check (per-user) ------------------------------- */
+    const exists = await URLModel.findOne({ url, user: userId });
+    if (exists) {
+      const err = new Error("URL already exists");
+      err.code = "DUPLICATE_URL";
+      throw err;
+    }
+
+    /* 3. Enrich ---------------------------------------------------- */
+    let title = "";
+    let thumbnail = null;
+
+    try {
+      const res = await fetchThumbnail(url); // { title, thumbnail }
+      title = res.title || "";
+      if (res.thumbnail) {
+        // fetch raw bytes & build buffer
+        const img = await axios.get(res.thumbnail, {
+          responseType: "arraybuffer",
+        });
+        thumbnail = {
+          data: Buffer.from(img.data, "binary"),
+          contentType: img.headers["content-type"] || "image/jpeg",
+        };
+      }
+    } catch (e) {
+      // enrichment is *best effort*; log & continue
+      console.warn("🔎 Enrich failed:", e.message);
+    }
+
+    /* 4. Create ---------------------------------------------------- */
+    return URLModel.create({
+      url,
+      domain: validDomain,
+      title,
+      thumbnail,
+      user: userId,
+      status: "pending",
+      date: new Date(),
+    });
+  }
+
   static async statsByUser(userId) {
     const statuses = ["downloaded", "scraped", "pending"];
     const counts = await Promise.all(
@@ -42,10 +114,9 @@ class UrlService {
     );
 
     const [downloaded, scraped, pending] = counts;
-    const total = downloaded + scraped + pending;
 
     return {
-      total,
+      total: downloaded + scraped + pending,
       downloaded,
       scraped,
       pending,
@@ -73,7 +144,18 @@ class UrlService {
   }
 
   static async add(url, userId) {
-    return URL.create({ url, user: userId });
+    const domain = getBaseDomain(url);
+    const { thumbnail, title } = await enrichWithThumbnail(url);
+
+    return URL.create({
+      url,
+      domain,
+      title,
+      thumbnail,
+      user: userId,
+      status: "pending",
+      date: new Date(),
+    });
   }
 
   static async changeStatus(id, userId, status) {
@@ -150,8 +232,14 @@ class UrlService {
           continue;
         }
 
+        const domain = getBaseDomain(url);
+        const { thumbnail, title } = await enrichWithThumbnail(url);
+
         await URL.create({
           url,
+          domain,
+          title,
+          thumbnail,
           user: userId,
           status: "pending",
           date: new Date(),
@@ -188,6 +276,27 @@ class UrlService {
       },
       { $sort: { count: -1 } },
     ]);
+  }
+
+  static async search(query, userId) {
+    const regex = new RegExp(query, "i");
+
+    const results = await URL.find({
+      user: userId,
+      $or: [{ url: regex }, { title: regex }, { domain: regex }],
+    }).sort({ date: -1 });
+
+    return results.map((doc) => {
+      const obj = doc.toObject();
+
+      if (obj.thumbnail?.data) {
+        obj.thumbnail = {
+          data: obj.thumbnail.data.toString("base64"),
+          contentType: obj.thumbnail.contentType,
+        };
+      }
+      return obj;
+    });
   }
 }
 

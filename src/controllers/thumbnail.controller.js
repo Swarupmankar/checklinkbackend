@@ -1,5 +1,6 @@
 const { fetchThumbnail } = require("../services/thumbnail.service");
 const asyncHandler = require("../utils/asyncHandler");
+const { fixBrokenUrls } = require("../fixBrokenUrls");
 
 exports.getThumbnail = asyncHandler(async (req, res) => {
   const { url } = req.body;
@@ -15,3 +16,19 @@ exports.getThumbnail = asyncHandler(async (req, res) => {
       .json({ message: "Could not extract thumbnail from the provided URL." });
   }
 });
+
+exports.fixBrokenUrls = async (req, res) => {
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.setHeader("Transfer-Encoding", "chunked");
+
+  const write = (msg) => res.write(msg + "\n");
+
+  try {
+    await fixBrokenUrls(write); // Pass a log function
+    res.end("✅ Done.\n");
+  } catch (err) {
+    console.error("❌ Error:", err);
+    write("❌ Script crashed: " + err.message);
+    res.end();
+  }
+};

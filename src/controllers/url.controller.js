@@ -4,6 +4,12 @@ const { getBaseDomain } = require("../utils/url.helper");
 const fs = require("fs/promises");
 const path = require("path");
 
+function thumbToDataURI(link) {
+  if (!link.thumbnail?.data) return null;
+  const base64 = link.thumbnail.data.toString("base64");
+  return `data:${link.thumbnail.contentType};base64,${base64}`;
+}
+
 exports.list = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -14,6 +20,8 @@ exports.list = async (req, res) => {
     const formatted = result.data.map((link) => ({
       ...link.toObject(),
       addedOnIST: toIST(link.date),
+      thumbnail: thumbToDataURI(link),
+      title: link.title || "No title found", // Add this line
     }));
     res.json({
       data: formatted,
@@ -32,15 +40,19 @@ exports.stats = async (req, res) => {
       UrlService.linksAddedOverTime(req.user.id),
     ]);
 
-    const formattedLinksAdded = linksAddedData.map(({ _id, count }) => ({
-      date: _id,
-      dateIST: toIST(_id),
-      count,
-    }));
+    // const formattedLinksAdded = linksAddedData.map(({ _id, count }) => ({
+    //   date: _id,
+    //   dateIST: toIST(_id),
+    //   count,
+    // }));
 
     res.json({
       stats,
-      linksAddedData: formattedLinksAdded,
+      linksAddedData: linksAddedData.map(({ _id, count }) => ({
+        date: _id,
+        dateIST: toIST(_id),
+        count,
+      })),
     });
   } catch (err) {
     console.error("Stats error:", err);
@@ -48,13 +60,32 @@ exports.stats = async (req, res) => {
   }
 };
 
+// exports.add = async (req, res) => {
+//   try {
+//     const { url } = req.body;
+//     await UrlService.add(url, req.user.id);
+//     res.status(201).send("URL added successfully!");
+//   } catch {
+//     res.status(400).send("URL already exists or invalid");
+//   }
+// };
+
 exports.add = async (req, res) => {
+  const { url } = req.body;
+  if (!url) return res.status(400).json({ message: "url is required" });
+
   try {
-    const { url } = req.body;
     await UrlService.add(url, req.user.id);
-    res.status(201).send("URL added successfully!");
-  } catch {
-    res.status(400).send("URL already exists or invalid");
+    return res.status(201).json({ message: "URL added successfully" });
+  } catch (err) {
+    /* user-friendly errors */
+    if (err.code === "DUPLICATE_URL")
+      return res.status(409).json({ message: "URL already exists" });
+    if (err.code === "INVALID_URL")
+      return res.status(422).json({ message: "Provided URL is invalid" });
+
+    console.error("Add URL error:", err);
+    return res.status(500).json({ message: "Failed to add URL" });
   }
 };
 
@@ -125,6 +156,8 @@ exports.listByDomain = async (req, res) => {
       ...link.toObject(),
       addedOnIST: toIST(link.date),
       baseDomain: getBaseDomain(link.url),
+      thumbnail: thumbToDataURI(link),
+      title: link.title || "No title found", // Add this line
     }));
 
     res.json({
@@ -158,5 +191,33 @@ exports.getDomains = async (req, res) => {
       error: "Failed to fetch domains",
       details: err.message,
     });
+  }
+};
+
+// exports.search = async (req, res) => {
+//   try {
+//     const { q = "", page = 1, limit = 12 } = req.query;
+//     const result = await UrlService.search(req.user.id, q, +page, +limit);
+//     const formatted = result.data.map((l) => ({
+//       ...l.toObject(),
+//       addedOnIST: toIST(l.date),
+//       baseDomain: getBaseDomain(l.url),
+//     }));
+
+//     return res.json({ data: formatted, meta: result.meta });
+//   } catch (err) {
+//     console.error("Search error:", err);
+//     return res.status(500).json({ message: "Failed to search URLs" });
+//   }
+// };
+
+exports.search = async (req, res) => {
+  try {
+    const { q } = req.query;
+    const results = await UrlService.search(q, req.user.id);
+    res.json(results);
+  } catch (err) {
+    console.error("Search error:", err);
+    res.status(500).send("Search failed");
   }
 };

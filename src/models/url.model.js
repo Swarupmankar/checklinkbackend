@@ -43,6 +43,11 @@ const urlSchema = new Schema(
       required: true,
       index: true, // Add index for faster domain queries
     },
+    title: { type: String },
+    thumbnail: {
+      data: Buffer, // actual image binary
+      contentType: String, // e.g., "image/jpeg"
+    },
     date: {
       type: Date,
       default: Date.now,

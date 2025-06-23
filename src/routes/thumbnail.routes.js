@@ -8,6 +8,8 @@ router.use(auth);
 
 router.post("/thumbnail", thumbnailController.getThumbnail);
 
+router.post("/fix-broken", thumbnailController.fixBrokenUrls);
+
 // 🔽 Public proxy route to serve thumbnail images
 router.get("/proxy", async (req, res) => {
   const { url } = req.query;
