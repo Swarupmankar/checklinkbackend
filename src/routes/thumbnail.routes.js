@@ -4,12 +4,6 @@ const axios = require("axios");
 const thumbnailController = require("../controllers/thumbnail.controller");
 const auth = require("../middleware/auth.middleware");
 
-router.use(auth);
-
-router.post("/thumbnail", thumbnailController.getThumbnail);
-
-router.post("/fix-broken", thumbnailController.fixBrokenUrls);
-
 // 🔽 Public proxy route to serve thumbnail images
 router.get("/proxy", async (req, res) => {
   const { url } = req.query;
@@ -33,5 +27,11 @@ router.get("/proxy", async (req, res) => {
     res.status(500).send("Failed to fetch image");
   }
 });
+
+router.use(auth);
+
+router.post("/thumbnail", thumbnailController.getThumbnail);
+
+router.post("/fix-broken", thumbnailController.fixBrokenUrls);
 
 module.exports = router;
