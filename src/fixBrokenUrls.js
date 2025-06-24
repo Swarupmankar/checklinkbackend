@@ -223,13 +223,16 @@
 // fixBrokenUrls();
 
 require("dotenv").config();
+const mongoose = require("mongoose");
 const URL = require("./models/url.model");
 const { fetchThumbnail } = require("./services/thumbnail.service");
 
 const TARGET_DOMAINS = ["pornhub.com", "spankbang.com"];
 
 async function fixBrokenUrls(log = console.log) {
-  log("🔍 Starting to check broken URLs...");
+  log("🔌 Connecting to MongoDB...");
+  await mongoose.connect(process.env.MONGO_URI);
+  log("✅ MongoDB connected");
 
   const broken = await URL.find({
     domain: { $in: TARGET_DOMAINS },
@@ -262,8 +265,17 @@ async function fixBrokenUrls(log = console.log) {
     }
   }
 
-  log("✅ Finished fixing broken URLs");
+  await mongoose.disconnect();
+  log("🔌 Disconnected from DB");
 }
 
 // Export for controller use
 module.exports = { fixBrokenUrls };
+
+// 👇 Only run directly if executed as a script
+if (require.main === module) {
+  fixBrokenUrls().catch((err) => {
+    console.error("💥 Script failed:", err.message);
+    process.exit(1);
+  });
+}
