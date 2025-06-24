@@ -71,6 +71,7 @@ exports.stats = async (req, res) => {
 // };
 
 exports.add = async (req, res) => {
+  console.log("📥 add() called with URL:", req.body.url);
   const { url } = req.body;
   if (!url) return res.status(400).json({ message: "url is required" });
 
