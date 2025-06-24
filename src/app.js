@@ -45,6 +45,12 @@ app.use(
 );
 app.use(express.urlencoded({ extended: true }));
 
+app.use("/api/proxy", require("./routes/proxy.routes"));
+
+// 🔒 Then mount auth for all remaining routes
+const authMiddleware = require("./middleware/auth.middleware");
+app.use(authMiddleware);
+
 // mounted routes
 app.use("/api/auth", require("./routes/auth.routes"));
 app.use("/api/urls", require("./routes/url.routes"));

@@ -16,7 +16,7 @@ async function fetchWithCheerio(url) {
   let finalUrl = url;
   if (useProxy) {
     console.log("🛡 Using proxy for:", url);
-    finalUrl = `https://quintessential-koo-checklink-3c39587f.koyeb.app//api/video/proxy?url=${encodeURIComponent(
+    finalUrl = `http://localhost:5000/api/video/proxy?url=${encodeURIComponent(
       url
     )}`;
   }
