@@ -4,11 +4,8 @@ const axios = require("axios");
 const thumbnailController = require("../controllers/thumbnail.controller");
 const auth = require("../middleware/auth.middleware");
 
-
 router.use(auth);
 
 router.post("/thumbnail", thumbnailController.getThumbnail);
-
-router.post("/fix-broken", thumbnailController.fixBrokenUrls);
 
 module.exports = router;

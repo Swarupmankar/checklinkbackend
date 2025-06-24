@@ -52,12 +52,9 @@ class UrlService {
   static async add(rawUrl, userId) {
     const url = normaliseUrl(rawUrl);
 
-    /* 1. Basic URL validity --------------------------------------- */
     let validDomain;
     try {
       validDomain = getBaseDomain(url);
-      // Will throw if URL constructor can’t parse it
-      // eslint-disable-next-line no-new
       new URL(url);
     } catch {
       const err = new Error("Invalid URL format");
@@ -91,7 +88,6 @@ class UrlService {
         };
       }
     } catch (e) {
-      // enrichment is *best effort*; log & continue
       console.warn("🔎 Enrich failed:", e.message);
     }
 

@@ -195,26 +195,12 @@ exports.getDomains = async (req, res) => {
   }
 };
 
-// exports.search = async (req, res) => {
-//   try {
-//     const { q = "", page = 1, limit = 12 } = req.query;
-//     const result = await UrlService.search(req.user.id, q, +page, +limit);
-//     const formatted = result.data.map((l) => ({
-//       ...l.toObject(),
-//       addedOnIST: toIST(l.date),
-//       baseDomain: getBaseDomain(l.url),
-//     }));
-
-//     return res.json({ data: formatted, meta: result.meta });
-//   } catch (err) {
-//     console.error("Search error:", err);
-//     return res.status(500).json({ message: "Failed to search URLs" });
-//   }
-// };
-
 exports.search = async (req, res) => {
   try {
     const { q } = req.query;
+    console.log("🔍 Search query:", q);
+    console.log("🔐 User ID:", req.user?.id);
+    
     const results = await UrlService.search(q, req.user.id);
     res.json(results);
   } catch (err) {
