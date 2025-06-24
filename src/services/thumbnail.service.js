@@ -102,54 +102,41 @@
 
 // module.exports = { fetchThumbnail };
 
-const puppeteer = require("puppeteer");
+const puppeteer = require("puppeteer-core");
+const chromium = require("chrome-aws-lambda");
 
 async function fetchThumbnail(url) {
   console.log("📸 fetchThumbnail called for:", url);
 
-  const browser = await puppeteer.launch({
-    headless: "new",
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-blink-features=AutomationControlled",
-      "--disable-dev-shm-usage",
-    ],
-  });
-
-  const page = await browser.newPage();
+  let browser;
 
   try {
-    await page.setUserAgent(
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36"
+    browser = await puppeteer.launch({
+      args: chromium.args,
+      executablePath: await chromium.executablePath,
+      headless: chromium.headless,
+      defaultViewport: { width: 1280, height: 720 },
+    });
+
+    const page = await browser.newPage();
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15000 });
+
+    const title = await page.title();
+
+    const thumbnail = await page.$$eval(
+      "meta[property='og:image'], meta[name='og:image']",
+      (tags) => tags[0]?.getAttribute("content") || null
     );
 
-    await page.goto(url, {
-      waitUntil: "domcontentloaded",
-      timeout: 30000,
-    });
+    console.log("✅ Title:", title);
+    console.log("🖼️ Thumbnail:", thumbnail);
 
-    const data = await page.evaluate(() => {
-      const title =
-        document.querySelector("meta[property='og:title']")?.content ||
-        document.title;
-
-      const thumbnail =
-        document.querySelector("meta[property='og:image']")?.content ||
-        document.querySelector("meta[name='twitter:image']")?.content ||
-        document.querySelector("video")?.poster ||
-        null;
-
-      return { title, thumbnail };
-    });
-
-    console.log("✅ Puppeteer scraped:", data);
-    return data;
+    return { title, thumbnail };
   } catch (err) {
-    console.error("❌ Puppeteer fetch failed:", err.message);
+    console.error("❌ fetchThumbnail error:", err.message);
     return { title: null, thumbnail: null };
   } finally {
-    await browser.close();
+    if (browser) await browser.close();
   }
 }
 
