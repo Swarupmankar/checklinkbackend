@@ -257,11 +257,8 @@ async function fixBrokenUrls(log = console.log) {
       await doc.save();
       log(`✅ Fixed: ${doc.url}`);
     } catch (err) {
-      log(
-        `❌ Failed for ${doc.url}: ${
-          err.message || err.response?.status || err.code || "Unknown error"
-        }`
-      );
+      log(`❌ Failed for ${doc.url}: ${err.message}`);
+      console.error(err);
     }
   }
 
