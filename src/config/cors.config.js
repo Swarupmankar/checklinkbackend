@@ -2,7 +2,8 @@ const cors = require("cors");
 
 const allowedOrigins = [
   "http://localhost:8080",
-  "https://checklinkfun.vercel.app",
+  "https://checklink.fun",
+  "https://www.checklink.fun",
   "capacitor://localhost",
   "http://localhost",
   "https://localhost",
