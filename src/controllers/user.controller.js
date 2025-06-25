@@ -1,4 +1,4 @@
-const userService = require("../services/users.services");
+const userService = require("../services/user.services");
 
 /**
  * GET /api/users/me
